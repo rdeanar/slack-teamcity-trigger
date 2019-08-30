@@ -1,0 +1,25 @@
+version: '2'
+
+services:
+  build-trigger:
+    environment:
+      SLACK_COMMAND_TOKEN: "$SLACK_COMMAND_TOKEN"
+      TEAMCITY_SERVER: "$TEAMCITY_SERVER"
+      TEAMCITY_TOKEN: "$TEAMCITY_TOKEN"
+    image: deanar/slack-teamcity-trigger
+    #build: ./
+    command: |
+      sh -c 'sh -s <<EOF
+        cat > /app/tasks/deployweb.xml <<EON
+          <build>
+            <buildType id="Backend_Deploy_DeployWebAppTag"/>
+            <properties>
+              <property name="imageTag" value="@param1"/>
+              <property name="server" value="$TC_CONFIG_DEPLOY_SERVER_ADDR"/>
+            </properties>
+          </build>
+      EON
+      /usr/local/bin/php /app/server.php
+      EOF'
+    ports:
+      - '9000:9000'
