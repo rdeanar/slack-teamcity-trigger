@@ -5,7 +5,7 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 # https://getcomposer.org/doc/03-cli.md#composer-allow-superuser
 ENV COMPOSER_ALLOW_SUPERUSER=1
 RUN set -eux; \
-    composer config -g github-oauth.github.com "3b168daa32c2b2b1214748a711257d04f265b708"; \
+    composer config -g github-oauth.github.com "c2cf68f5ea048f440ec451af81068798f2c02fdb"; \
 	composer global require "hirak/prestissimo:^0.3" --prefer-dist --no-progress --no-suggest --classmap-authoritative; \
 	composer clear-cache
 ENV PATH="${PATH}:/root/.composer/vendor/bin"
