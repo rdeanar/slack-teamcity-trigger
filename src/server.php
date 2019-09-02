@@ -9,7 +9,7 @@ use React\Http\Server;
 
 require __DIR__ . '/vendor/autoload.php';
 
-$generateResponse = function ($message, $code = 200) {
+$generateResponse = static function ($message, $code = 200) {
     $responseData = [
         'response_type' => 'ephemeral',
         'text'          => $message,
@@ -69,32 +69,66 @@ $server = new Server(static function (ServerRequestInterface $request) use ($loo
         $taskBody = str_replace('@param' . $i, $$paramVariable, $taskBody);
     }
 
-    $tcSeverUrl = getenv('TEAMCITY_SERVER');
-    $client = new \GuzzleHttp\Client();
 
-    $options['body'] = $taskBody;
-    $options['headers'] = [
-        'Authorization' => 'Bearer ' . getenv('TEAMCITY_TOKEN'),
-        'Accept'        => 'application/json',
-        'Content-Type'  => 'application/xml',
-        'Origin'        => $tcSeverUrl,
+    $paramText = $body['text'];
+    
+    $loop->addTimer(0.1, function () use ($response_url, $taskBody, $paramText) {
 
-    ];
+        $tcSeverUrl = getenv('TEAMCITY_SERVER');
 
-    $response = $client->request('POST', $tcSeverUrl . '/app/rest/buildQueue', $options);
+        $client = new \GuzzleHttp\Client();
 
-    $isSuccess = $response->getStatusCode() === 200;
+        $options['body'] = $taskBody;
+        $options['headers'] = [
+            'Authorization' => 'Bearer ' . getenv('TEAMCITY_TOKEN'),
+            'Accept'        => 'application/json',
+            'Content-Type'  => 'application/xml',
+            'Origin'        => $tcSeverUrl,
+
+        ];
+
+        try {
+            $response = $client->request('POST', $tcSeverUrl . '/app/rest/buildQueue', $options);
+
+            $isSuccess = $response->getStatusCode() === 200;
+            $responseBody = $response->getBody();
+        } catch (\GuzzleHttp\Exception\ConnectException $e) {
+            $isSuccess = false;
+            $responseBody = '';
+        }
+
+        $responseData = [
+            'response_type' => 'in_channel',
+            'text'          => $isSuccess ? 'Build command was sent successfully!' : 'Error while sending build command :(',
+            'attachments'   => [
+                [
+                    'color' => $isSuccess ? '#36a64f' : '#a63636',
+                    'title' => $isSuccess ? 'Success' : 'Failed',
+                    'text'  => $isSuccess ? 'Build command started: ' . $paramText : $responseBody,
+                ],
+            ],
+        ];
+
+        $data_string = json_encode($responseData);
+
+        $ch = curl_init($response_url);
+        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, "POST");
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $data_string);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, array(
+                'Content-Type: application/json',
+                'Content-Length: ' . strlen($data_string))
+        );
+
+        $result = curl_exec($ch);
+
+        echo 'Response from slack: ' . $result . PHP_EOL;
+    });
+
 
     $responseData = [
-        'response_type' => 'in_channel',
-        'text'          => $isSuccess ? 'Build command was sent!' : 'Error while sending build command :(',
-        'attachments'   => [
-            [
-                'color' => $isSuccess ? '#36a64f' : '#a63636',
-                'title' => $isSuccess ? 'Success' : 'Failed',
-                'text'  => $isSuccess ? 'Build command sent sucessfully.' : $response->getBody(),
-            ],
-        ],
+        'response_type' => 'ephemeral',
+        'text'          => 'Request sent, wait for the answer.',
     ];
     $response = new Response(
         200,
